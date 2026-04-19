@@ -1,0 +1,28 @@
+# =============================================================================
+# Phase 2: Live Intra-Op AR Pipeline — Docker Compose
+# Usage: docker-compose up
+# =============================================================================
+
+services:
+  surgery-ar:
+    build: .
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      # Mount data directory for videos
+      - ./data:/app/data
+      # Mount models directory for checkpoints
+      - ./models:/app/models
+      # X11 forwarding for HolovizOp display
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    environment:
+      - DISPLAY=${DISPLAY}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    network_mode: host
+    ipc: host

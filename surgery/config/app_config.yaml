@@ -1,0 +1,252 @@
+# =============================================================================
+# Phase 2: Live Intra-Op AR Pipeline Configuration
+# =============================================================================
+
+detector:
+  backend: "roboflow_hosted"
+
+vlm:
+  enabled: true
+  # Switch to "rule_based" for offline/no-API fallback.
+  provider: "openai_compatible"
+  user_query: "Focus on the gallbladder, cystic duct, and hepatocystic triangle during laparoscopic cholecystectomy."
+  candidate_labels:
+    - "gallbladder"
+    - "cystic_duct"
+    - "cystic_artery"
+    - "cystic_plate"
+    - "hepatocystic_triangle"
+    - "liver"
+    - "grasper"
+    - "bipolar"
+    - "hook"
+    - "scissors"
+    - "clipper"
+    - "irrigator"
+    - "specimen_bag"
+  anatomy_aliases:
+    gallbladder: ["gb", "gall bladder"]
+    cystic_duct: ["duct", "cystic duct"]
+    cystic_artery: ["artery", "cystic artery"]
+    cystic_plate: ["plate", "cystic plate"]
+    hepatocystic_triangle: ["calot", "calots triangle", "hepatocystic triangle"]
+    liver: ["liver", "hepatic surface"]
+    grasper: ["grasper", "forceps", "tool", "instrument"]
+    bipolar: ["bipolar"]
+    hook: ["hook", "cautery", "electrocautery"]
+    scissors: ["scissors"]
+    clipper: ["clipper", "clips", "clipping tool"]
+    irrigator: ["irrigator", "suction", "suction irrigator"]
+    specimen_bag: ["bag", "specimen bag", "retrieval bag"]
+  prompt_every_n_frames: 30
+  # Groq base64 limit is 4 MB; 512px keeps JPEG well under that.
+  max_image_size: 512
+  api_url: "https://api.groq.com/openai/v1/chat/completions"
+  api_key: ""
+  api_key_env: "GROQ_API_KEY"
+  model: "meta-llama/llama-4-scout-17b-16e-instruct"
+
+scene_copilot:
+  enabled: true
+  provider: "openai_compatible"
+  user_query: "Summarize the current laparoscopic cholecystectomy scene conservatively and identify what deserves attention."
+  refresh_interval_seconds: 2.0
+  refresh_every_n_frames: 30
+  max_history_frames: 90
+  max_image_size: 512
+  api_url: "https://api.groq.com/openai/v1/chat/completions"
+  api_key: ""
+  api_key_env: "GROQ_API_KEY"
+  model: "meta-llama/llama-4-scout-17b-16e-instruct"
+  ontology_version: "lap_chole_v1"
+  conservative_mode: true
+  output_path: "../data/scene_copilot/latest_scene_analysis.json"
+  assistant_modes:
+    enabled_modes:
+      - "overlay_update"
+      - "safety_check"
+      - "structure_report"
+      - "anatomy_verification"
+      - "workflow_status"
+      - "instrument_activity"
+      - "general_scene_question"
+    default_uncertainty_policy: "fail_closed"
+    show_mode_badge: true
+    allow_general_scene_mode: true
+    structure_report_requires_target: true
+    safety_check_requires_grounded_evidence: true
+
+surgery_log:
+  enabled: true
+  output_dir: "../data/surgery_logs"
+  observation_every_n_frames: 75
+  keyframe_every_n_frames: 250
+  report_max_keyframes: 6
+
+replayer:
+  directory: "../data/converted"
+  basename: "dangerous_way_of_performing_laparoscopic_cholecystectomy_dr_r_k_mishra_1080p_clips_002_011_stitched/dangerous_way_of_performing_laparoscopic_cholecystectomy_dr_r_k_mishra_1080p_clips_002_011_stitched"
+  realtime: true
+  repeat: true
+  frame_rate: 25.0
+
+live_overlay:
+  enabled: true
+  update_every_n_frames: 1
+  max_inference_fps: 5.0
+  mask_stale_after_frames: 60
+  mask_stale_after_seconds: 2.5
+  replace_on_new_query: false
+  short_term_seconds: 6.0
+
+format_converter:
+  output_resolution: [1024, 1024]
+  output_format: "rgb888"
+
+yolo:
+  model_path: "../models/yolov8n.pt"
+  confidence_threshold: 0.4
+  detect_every_n_frames: 15
+  device: "cuda:0"
+  target_classes: null
+  class_name_map:
+    Gallbladder: "gallbladder"
+    Duct: "cystic_duct"
+    Calot: "hepatocystic_triangle"
+    Liver: "liver"
+    Forceps: "grasper"
+    Allis: "grasper"
+    Cautery: "hook"
+    Clipper: "clipper"
+    Suction: "irrigator"
+    Bag: "specimen_bag"
+    scissors: "scissors"
+    Tube: "tube"
+
+roboflow_laparoscopy:
+  model_id: "laparoscopy/14"
+  api_url: "https://serverless.roboflow.com"
+  api_key: ""
+  api_key_env: "ROBOFLOW_API_KEY"
+  confidence_threshold: 0.35
+  detect_every_n_frames: 15
+  dataset_workspace: "laparoscopic-yolo"
+  dataset_project: "laparoscopy"
+  dataset_version: 14
+  dataset_dir: "../data/datasets/roboflow_laparoscopy"
+  target_classes: null
+  class_name_map:
+    Gallbladder: "gallbladder"
+    Duct: "cystic_duct"
+    Calot: "hepatocystic_triangle"
+    Liver: "liver"
+    Forceps: "grasper"
+    Allis: "grasper"
+    Cautery: "hook"
+    Clipper: "clipper"
+    Suction: "irrigator"
+    Bag: "specimen_bag"
+    scissors: "scissors"
+    Tube: "tube"
+
+yolo_tools:
+  model_path: "../models/yolo_tools.pt"
+  confidence_threshold: 0.35
+  detect_every_n_frames: 15
+  device: "cuda:0"
+  target_classes:
+    - "grasper"
+    - "bipolar"
+    - "hook"
+    - "scissors"
+    - "clipper"
+    - "irrigator"
+    - "specimen_bag"
+  class_name_map: {}
+
+yolo_anatomy:
+  model_path: "../models/yolo_anatomy.pt"
+  confidence_threshold: 0.3
+  detect_every_n_frames: 15
+  device: "cuda:0"
+  target_classes:
+    - "gallbladder"
+    - "cystic_duct"
+    - "cystic_artery"
+    - "cystic_plate"
+    - "hepatocystic_triangle"
+  class_name_map: {}
+
+segmenter:
+  backend: "medsam2"
+  prompt_classes:
+    - "gallbladder"
+    - "cystic_duct"
+    - "cystic_artery"
+    - "cystic_plate"
+    - "hepatocystic_triangle"
+    - "liver"
+    - "grasper"
+    - "bipolar"
+    - "hook"
+    - "scissors"
+    - "clipper"
+    - "irrigator"
+    - "specimen_bag"
+
+medsam2:
+  checkpoint: "../models/MedSAM2_latest.pt"
+  model_cfg: "configs/sam2.1_hiera_t512.yaml"
+  device: "cuda:0"
+  dtype: "bfloat16"
+  max_objects: 10
+  use_temporal_memory: true
+
+sam2:
+  checkpoint: "../models/sam2.1_hiera_tiny.pt"
+  model_cfg: "configs/sam2.1/sam2.1_hiera_t.yaml"
+  device: "cuda:0"
+  dtype: "bfloat16"
+  vos_optimized: true
+  max_objects: 5
+  memory_window: 16
+  track_between_detections: true
+
+overlay:
+  colors:
+    gallbladder: [0, 255, 128, 160]
+    cystic_duct: [255, 165, 0, 140]
+    cystic_artery: [255, 50, 50, 140]
+    cystic_plate: [64, 224, 208, 130]
+    hepatocystic_triangle: [255, 235, 59, 130]
+    liver: [255, 214, 10, 132]
+    grasper: [100, 149, 237, 120]
+    bipolar: [71, 202, 255, 120]
+    hook: [186, 85, 211, 120]
+    scissors: [255, 111, 97, 120]
+    clipper: [168, 230, 207, 120]
+    irrigator: [135, 206, 250, 120]
+    specimen_bag: [255, 179, 71, 120]
+  blend_alpha: 0.45
+  glow_effect: true
+  glow_radius: 8
+  contour_thickness: 2
+
+evaluation:
+  raw_video_dir: "../data/cholec80/raw"
+  prompt_dir: "../data/cholec80/prompts"
+  processed_dir: "../data/cholec80/processed"
+  video_glob: "video*.mp4"
+  default_max_frames: 600
+
+training:
+  root_dir: "../data/datasets"
+  prepared_dir: "../data/datasets/prepared"
+  tools_dataset_yaml: "../data/datasets/prepared/yolo_tools_dataset.yaml"
+  anatomy_dataset_yaml: "../data/datasets/prepared/yolo_anatomy_dataset.yaml"
+
+holoviz:
+  width: 1280
+  height: 720
+  fullscreen: false
+  vsync: false

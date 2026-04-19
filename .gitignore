@@ -1,0 +1,55 @@
+# Local secrets
+.env
+.env.*
+!.env.example
+surgery/.env.local
+
+# Python/runtime caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+surgery/tests/output/
+
+# Logs and debug captures
+*.log
+surgery/logs/*
+!surgery/logs/.gitkeep
+surgery/streamlit_debug.log
+surgery/streamlit_log.txt
+
+# Generated surgery data and reports
+data/
+surgery/data/clean.v5i.yolov8/
+surgery/data/clip_demo/
+surgery/data/converted/
+surgery/data/datasets/
+surgery/data/lap_demo/
+surgery/data/processed_clip_demo/
+surgery/data/roboflow_demo/
+surgery/data/surgery_videos/
+surgery/data/vlm_agent_outputs/
+
+# Model weights and downloaded checkpoints
+*.pt
+*.pth
+*.ckpt
+*.onnx
+surgery/models/*
+!surgery/models/download_checkpoints.sh
+
+# Large vendored demo assets inside MedSAM2
+surgery/third_party/MedSAM2/.git/
+surgery/third_party/MedSAM2/data/
+surgery/third_party/MedSAM2/checkpoints/
+surgery/third_party/MedSAM2/notebooks/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
