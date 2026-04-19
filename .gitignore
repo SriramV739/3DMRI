@@ -5,6 +5,10 @@
 surgery/.env.local
 
 # Python/runtime caches
+.venv/
+**/.venv/
+venv/
+**/venv/
 __pycache__/
 *.py[cod]
 *$py.class
@@ -14,6 +18,14 @@ __pycache__/
 .coverage
 htmlcov/
 surgery/tests/output/
+
+# JavaScript build/dependency outputs
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.vite/
+**/.vite/
 
 # Logs and debug captures
 *.log
