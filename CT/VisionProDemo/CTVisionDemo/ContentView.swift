@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 struct ContentView: View {
@@ -602,90 +603,90 @@ private struct SliceAnalysisSection: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ModelSnapshotQuestionSection()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                ModelSnapshotQuestionSection()
 
-            Divider()
+                Divider()
 
-            HStack(alignment: .firstTextBaseline) {
-                Label("Slice Analysis", systemImage: "brain")
-                    .font(.title3.weight(.semibold))
-                Spacer()
-                Text("\(viewModel.selectedSliceIDs.count)/5 selected")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(viewModel.selectedSliceIDs.isEmpty ? .secondary : .primary)
-            }
-
-            TextEditor(text: $viewModel.prompt)
-                .font(.body)
-                .frame(height: 132)
-                .padding(8)
-                .scrollContentBackground(.hidden)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(.secondary.opacity(0.22))
-                )
-
-            HStack(spacing: 10) {
-                Button {
-                    Task { await viewModel.analyzeSelectedSlices() }
-                } label: {
-                    Label("Run Inference", systemImage: "play.fill")
-                        .frame(maxWidth: .infinity)
+                HStack(alignment: .firstTextBaseline) {
+                    Label("Slice Analysis", systemImage: "brain")
+                        .font(.title3.weight(.semibold))
+                    Spacer()
+                    Text("\(viewModel.selectedSliceIDs.count)/5 selected")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(viewModel.selectedSliceIDs.isEmpty ? .secondary : .primary)
                 }
-                .disabled(viewModel.selectedSliceIDs.isEmpty || viewModel.isBusy)
-                .buttonStyle(.borderedProminent)
 
-                Button {
-                    viewModel.selectedSliceIDs.removeAll()
-                } label: {
-                    Image(systemName: "xmark.circle")
+                TextEditor(text: $viewModel.prompt)
+                    .font(.body)
+                    .frame(height: 132)
+                    .padding(8)
+                    .scrollContentBackground(.hidden)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(.secondary.opacity(0.22))
+                    )
+
+                HStack(spacing: 10) {
+                    Button {
+                        Task { await viewModel.analyzeSelectedSlices() }
+                    } label: {
+                        Label("Run Inference", systemImage: "play.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .disabled(viewModel.selectedSliceIDs.isEmpty || viewModel.isBusy)
+                    .buttonStyle(.borderedProminent)
+
+                    Button {
+                        viewModel.selectedSliceIDs.removeAll()
+                    } label: {
+                        Image(systemName: "xmark.circle")
+                    }
+                    .disabled(viewModel.selectedSliceIDs.isEmpty || viewModel.isBusy)
+                    .buttonStyle(.bordered)
+                    .help("Clear selected slices")
                 }
-                .disabled(viewModel.selectedSliceIDs.isEmpty || viewModel.isBusy)
-                .buttonStyle(.bordered)
-                .help("Clear selected slices")
-            }
-            .controlSize(.regular)
+                .controlSize(.regular)
 
-            if !viewModel.selectedSliceIDs.isEmpty {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 8) {
-                        ForEach(Array(viewModel.selectedSliceIDs).sorted(), id: \.self) { id in
-                            Text(id.replacingOccurrences(of: "ID_", with: ""))
-                                .font(.caption.weight(.medium))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 5)
-                                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                if !viewModel.selectedSliceIDs.isEmpty {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 8) {
+                            ForEach(Array(viewModel.selectedSliceIDs).sorted(), id: \.self) { id in
+                                Text(id.replacingOccurrences(of: "ID_", with: ""))
+                                    .font(.caption.weight(.medium))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                            }
                         }
                     }
+                    .scrollIndicators(.hidden)
                 }
-                .scrollIndicators(.hidden)
-            }
 
-            if !viewModel.analysisText.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Result")
-                        .font(.headline)
-                    ScrollView {
-                        MarkdownTextView(text: viewModel.analysisText)
+                if !viewModel.analysisText.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Result")
+                            .font(.headline)
+                        ScrollView {
+                            MarkdownTextView(text: viewModel.analysisText)
+                        }
+                        .frame(maxHeight: 220)
                     }
-                    .frame(maxHeight: 220)
+                    .padding(12)
+                    .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 8))
                 }
-                .padding(12)
-                .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 8))
-            }
 
-            HStack {
-                Text("Slices")
-                    .font(.headline)
-                Spacer()
-                Text("Tap up to five")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+                HStack {
+                    Text("Slices")
+                        .font(.headline)
+                    Spacer()
+                    Text("Tap up to five")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
-            ScrollView {
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(viewModel.slices) { slice in
                         SliceTile(slice: slice)
@@ -693,8 +694,8 @@ private struct SliceAnalysisSection: View {
                 }
                 .padding(.bottom, 20)
             }
+            .padding(18)
         }
-        .padding(18)
         .background(.regularMaterial)
     }
 }
@@ -722,7 +723,7 @@ private struct ModelSnapshotQuestionSection: View {
 
             TextEditor(text: $viewModel.snapshotQuestion)
                 .font(.body)
-                .frame(height: 96)
+                .frame(height: 82)
                 .padding(8)
                 .scrollContentBackground(.hidden)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -761,21 +762,59 @@ private struct ModelSnapshotQuestionSection: View {
             }
             .controlSize(.regular)
 
-            if !viewModel.snapshotAnalysisText.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("3D Answer")
-                        .font(.headline)
-                    ScrollView {
-                        MarkdownTextView(text: viewModel.snapshotAnalysisText)
-                    }
-                    .frame(maxHeight: 190)
-                }
-                .padding(12)
-                .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 8))
-            }
+            SnapshotAnswerPanel()
         }
         .padding(12)
         .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private struct SnapshotAnswerPanel: View {
+    @EnvironmentObject private var viewModel: CTViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Label("3D Answer", systemImage: "text.bubble")
+                    .font(.headline)
+                Spacer()
+                if !viewModel.snapshotAnalysisText.isEmpty {
+                    Button {
+                        viewModel.snapshotAnalysisText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Clear 3D answer")
+                }
+            }
+
+            if viewModel.snapshotAnalysisText.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("No 3D answer yet")
+                        .font(.callout.weight(.semibold))
+                    Text("Capture a view, ask Gemini, and the response will appear here.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
+                .padding(12)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+            } else {
+                ScrollView {
+                    MarkdownTextView(text: viewModel.snapshotAnalysisText)
+                        .padding(.trailing, 8)
+                }
+                .frame(minHeight: 190, maxHeight: 310)
+                .padding(12)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.accentColor.opacity(0.30), lineWidth: 1)
+                )
+            }
+        }
     }
 }
 
@@ -783,17 +822,94 @@ private struct MarkdownTextView: View {
     let text: String
 
     var body: some View {
+        let formattedText = Self.formattedClinicalText(text)
+
         Group {
-            if let attributed = try? AttributedString(markdown: text) {
+            if let attributed = try? AttributedString(markdown: formattedText) {
                 Text(attributed)
             } else {
-                Text(text)
+                Text(formattedText)
             }
         }
         .font(.body)
         .lineSpacing(4)
         .frame(maxWidth: .infinity, alignment: .leading)
         .textSelection(.enabled)
+    }
+
+    private static func formattedClinicalText(_ rawText: String) -> String {
+        var output = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !output.isEmpty else { return output }
+
+        let sectionHeadings = [
+            "Direct Answer",
+            "Visible Anatomy",
+            "Spatial Observations",
+            "Uncertainty and Limitations",
+            "Suggested Next View or Slice to Inspect",
+            "Anatomy Visible",
+            "Key Observations",
+            "Potential Abnormalities Or Issues",
+            "Limitations",
+            "Suggested Follow-Up Questions For A Clinician"
+        ]
+
+        for heading in sectionHeadings {
+            let escaped = NSRegularExpression.escapedPattern(for: heading)
+            let pattern = "(^|\\n+|(?<=[.!?])\\s*)(?:#{1,6}\\s*)?\(escaped):?\\s*"
+            output = replaceRegex(
+                pattern,
+                in: output,
+                with: "\n\n## \(NSRegularExpression.escapedTemplate(for: heading))\n\n"
+            )
+        }
+
+        let detailLabels = [
+            "Airway",
+            "Arteries",
+            "Arterial System",
+            "Veins",
+            "Venous System",
+            "Lungs",
+            "Cardiac Structures",
+            "Bones",
+            "Vascular Architecture",
+            "Venous Convergence",
+            "Thoracic Volume",
+            "Mediastinal Centering",
+            "Anatomical Integration",
+            "Scale",
+            "Visual Assessment",
+            "Pixel-Level Confirmation",
+            "Diagnostic Constraints",
+            "Anatomical Scope",
+            "Non-Diagnostic",
+            "Axial Source Slices",
+            "Coronal Reformation",
+            "Coronal Multiplanar Reconstruction",
+            "Radiologist Review"
+        ]
+
+        for label in detailLabels {
+            let escaped = NSRegularExpression.escapedPattern(for: label)
+            let pattern = "(^|\\n+|(?<=[.!?])\\s*)\(escaped):\\s*"
+            output = replaceRegex(
+                pattern,
+                in: output,
+                with: "\n\n- **\(NSRegularExpression.escapedTemplate(for: label)):** "
+            )
+        }
+
+        output = replaceRegex("\\n{3,}", in: output, with: "\n\n")
+        return output.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func replaceRegex(_ pattern: String, in text: String, with replacement: String) -> String {
+        guard let expression = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return text
+        }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return expression.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: replacement)
     }
 }
 

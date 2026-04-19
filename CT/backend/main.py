@@ -160,7 +160,7 @@ def analyze_json(request: AnalyzeRequest) -> dict[str, object]:
 @app.post("/api/analyze-3d-snapshot")
 def analyze_3d_snapshot(request: SnapshotAnalyzeRequest) -> dict[str, object]:
     if not request.image_base64.strip():
-        raise HTTPException(status_code=422, detail="image_base64 must contain a PNG snapshot")
+        raise HTTPException(status_code=422, detail="image_base64 must contain an image snapshot")
     try:
         return analyze_snapshot_gemini(
             image_base64=request.image_base64,

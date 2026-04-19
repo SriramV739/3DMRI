@@ -3,21 +3,79 @@ from __future__ import annotations
 import base64
 import io
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 from groq import Groq
 from google.genai import errors as genai_errors
 from google import genai
-from PIL import Image
+from PIL import Image, ImageStat
 
 from backend import settings
 from backend.imaging.dicom_io import ensure_slice_preview_png
 
 
+SNAPSHOT_SECTION_HEADINGS = [
+    "Direct Answer",
+    "Visible Anatomy",
+    "Spatial Observations",
+    "Uncertainty and Limitations",
+    "Suggested Next View or Slice to Inspect",
+    "Anatomy Visible",
+    "Key Observations",
+    "Potential Abnormalities Or Issues",
+    "Limitations",
+    "Suggested Follow-Up Questions For A Clinician",
+]
+
+SNAPSHOT_DETAIL_LABELS = [
+    "Airway",
+    "Arteries",
+    "Arterial System",
+    "Veins",
+    "Venous System",
+    "Lungs",
+    "Cardiac Structures",
+    "Bones",
+    "Vascular Architecture",
+    "Venous Convergence",
+    "Thoracic Volume",
+    "Mediastinal Centering",
+    "Anatomical Integration",
+    "Scale",
+    "Visual Assessment",
+    "Pixel-Level Confirmation",
+    "Diagnostic Constraints",
+    "Anatomical Scope",
+    "Non-Diagnostic",
+    "Axial Source Slices",
+    "Coronal Reformation",
+    "Coronal Multiplanar Reconstruction",
+    "Radiologist Review",
+]
+
+
 def load_vlm_config() -> dict[str, Any]:
     with settings.VLM_CONFIG_PATH.open("r", encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def _normalize_markdown_sections(text: str) -> str:
+    normalized = text.strip()
+    for heading in SNAPSHOT_SECTION_HEADINGS:
+        pattern = re.compile(rf"(^|(?<=[.!?])\s*|\n+)(?:#+\s*)?{re.escape(heading)}:?\s*", re.IGNORECASE)
+        normalized = pattern.sub(lambda match, title=heading: f"\n\n## {title}\n\n", normalized)
+
+        start_pattern = re.compile(rf"^(?:#+\s*)?{re.escape(heading)}:?\s*", re.IGNORECASE)
+        normalized = start_pattern.sub(f"## {heading}\n\n", normalized)
+
+    for label in SNAPSHOT_DETAIL_LABELS:
+        pattern = re.compile(rf"(^|(?<=[.!?])\s*|\n+){re.escape(label)}:\s*", re.IGNORECASE)
+        normalized = pattern.sub(lambda match, title=label: f"\n\n- **{title}:** ", normalized)
+
+    normalized = re.sub(r"\n{3,}", "\n\n", normalized).strip()
+    return normalized
 
 
 def _polish_analysis_text(raw_text: str) -> str:
@@ -36,7 +94,7 @@ def _polish_analysis_text(raw_text: str) -> str:
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError:
-        return text
+        return _normalize_markdown_sections(text)
 
     def titleize(value: str) -> str:
         return value.replace("_", " ").strip().title()
@@ -92,6 +150,74 @@ def _image_from_base64(image_base64: str) -> Image.Image:
         payload = payload.split(",", 1)[1]
     data = base64.b64decode(payload)
     return Image.open(io.BytesIO(data)).convert("RGB")
+
+
+def _downscale_for_vlm(image: Image.Image, max_side: int = 960) -> Image.Image:
+    width, height = image.size
+    largest = max(width, height)
+    if largest <= max_side:
+        return image
+    scale = max_side / float(largest)
+    target = (max(1, int(width * scale)), max(1, int(height * scale)))
+    return image.resize(target, Image.Resampling.LANCZOS)
+
+
+def _snapshot_signal(image: Image.Image) -> dict[str, Any]:
+    sample = image.convert("L").resize((96, 96), Image.Resampling.BILINEAR)
+    stat = ImageStat.Stat(sample)
+    mean = float(stat.mean[0])
+    stddev = float(stat.stddev[0])
+    histogram = sample.histogram()
+    total = max(1, sum(histogram))
+    very_dark_ratio = sum(histogram[:18]) / total
+    very_bright_ratio = sum(histogram[238:]) / total
+    uninformative = (mean < 18 and stddev < 18) or very_dark_ratio > 0.92 or very_bright_ratio > 0.92
+    return {
+        "mean_luma": round(mean, 2),
+        "stddev_luma": round(stddev, 2),
+        "very_dark_ratio": round(very_dark_ratio, 4),
+        "very_bright_ratio": round(very_bright_ratio, 4),
+        "uninformative": uninformative,
+    }
+
+
+def _label_group(label: str) -> str:
+    lower = label.lower()
+    if "artery" in lower or "aorta" in lower or "trunk" in lower:
+        return "arteries"
+    if "vein" in lower or "vena" in lower:
+        return "veins"
+    if lower.startswith("lung_"):
+        return "lungs"
+    if "heart" in lower or "atrial" in lower or "ventricle" in lower:
+        return "heart"
+    if lower.startswith(("rib_", "vertebrae_")) or lower in {"sternum", "clavicula_left", "clavicula_right", "scapula_left", "scapula_right"}:
+        return "bones"
+    if lower in {"trachea", "esophagus"}:
+        return "airway"
+    if lower in {"liver", "spleen", "stomach", "kidney_left", "kidney_right", "pancreas"}:
+        return "abdomen"
+    return "other"
+
+
+def _readable_label(label: str) -> str:
+    return label.replace("_", " ").title()
+
+
+def _visible_label_summary(labels: list[str]) -> str:
+    if not labels:
+        return "No app-visible segmentation labels were provided."
+    grouped: dict[str, list[str]] = {}
+    for label in labels:
+        grouped.setdefault(_label_group(label), []).append(_readable_label(label))
+    sections = []
+    for group in sorted(grouped):
+        values = ", ".join(sorted(grouped[group])[:24])
+        extra = len(grouped[group]) - min(len(grouped[group]), 24)
+        if extra > 0:
+            values += f", plus {extra} more"
+        sections.append(f"{group}: {values}")
+    return "; ".join(sections)
 
 
 def ensure_slice_png(slice_id: str) -> Path:
@@ -280,6 +406,7 @@ def analyze_snapshot_gemini(
     model = config.get("gemini_model", "gemini-3.1-flash-lite-preview")
     fallback_models = [item for item in config.get("gemini_fallback_models", []) if isinstance(item, str) and item != model]
     visible = visible_labels or []
+    visible_summary = _visible_label_summary(visible)
     snapshot_prompt_template = config.get(
         "snapshot_user_prompt_template",
         (
@@ -292,14 +419,29 @@ def analyze_snapshot_gemini(
         user_note=user_note or "No specific question provided.",
         asset_id=asset_id or "unknown asset",
         visible_labels=", ".join(visible[:80]) if visible else "No labels provided.",
+        visible_label_summary=visible_summary,
         rotation_x="unknown" if rotation_x is None else f"{rotation_x:.3f}",
         rotation_y="unknown" if rotation_y is None else f"{rotation_y:.3f}",
         scale="unknown" if scale is None else f"{scale:.3f}",
     )
+    snapshot_image = _downscale_for_vlm(_image_from_base64(image_base64))
+    snapshot_signal = _snapshot_signal(snapshot_image)
+    if snapshot_signal["uninformative"]:
+        prompt += (
+            "\n\nAutomatic snapshot quality check: the captured image appears dark, blank, or otherwise "
+            "uninformative. This is a known visionOS capture limitation for RealityKit layers. Do not "
+            "state that the viewport is black, empty, failed, or unresponsive. Answer from the app-state "
+            "visible anatomy labels, view state, and the user's question. If visual confirmation is limited, "
+            "say that the capture is not suitable for pixel-level assessment, but still summarize the selected "
+            "visible anatomy from app state."
+        )
+
     payload_preview = {
         "model": model,
         "asset_id": asset_id,
         "visible_label_count": len(visible),
+        "visible_label_summary": visible_summary,
+        "snapshot_signal": snapshot_signal,
         "view_state": {
             "rotation_x": rotation_x,
             "rotation_y": rotation_y,
@@ -327,7 +469,6 @@ def analyze_snapshot_gemini(
             "analysis": "GEMINI_API_KEY is not set. Add it to CT/.env to enable live Gemini analysis.",
         }
 
-    snapshot_image = _image_from_base64(image_base64)
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
     attempted_models: list[str] = []
     provider_errors: list[str] = []
@@ -336,7 +477,8 @@ def analyze_snapshot_gemini(
     for candidate_model in [model, *fallback_models]:
         attempted_models.append(candidate_model)
         try:
-            response = client.models.generate_content(model=candidate_model, contents=[prompt, snapshot_image])
+            contents: list[Any] = [prompt] if snapshot_signal["uninformative"] else [prompt, snapshot_image]
+            response = client.models.generate_content(model=candidate_model, contents=contents)
             analysis_text = _polish_analysis_text(response.text or "")
             used_model = candidate_model
             break

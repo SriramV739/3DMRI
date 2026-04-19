@@ -38,13 +38,14 @@ struct APIClient {
     }
 
     func getJSON<T: Decodable>(_ path: String, as type: T.Type = T.self) async throws -> T {
-        let (data, response) = try await URLSession.shared.data(from: resolve(path))
+        let request = makeRequest(url: resolve(path), timeout: 90)
+        let (data, response) = try await URLSession.shared.data(for: request)
         try validate(response: response, data: data)
         return try JSONDecoder().decode(T.self, from: data)
     }
 
     func postJSON<T: Decodable, Body: Encodable>(_ path: String, body: Body, as type: T.Type = T.self) async throws -> T {
-        var request = URLRequest(url: resolve(path))
+        var request = makeRequest(url: resolve(path), timeout: 240)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
@@ -54,7 +55,7 @@ struct APIClient {
     }
 
     func postJSON<T: Decodable>(_ path: String, as type: T.Type = T.self) async throws -> T {
-        var request = URLRequest(url: resolve(path))
+        var request = makeRequest(url: resolve(path), timeout: 180)
         request.httpMethod = "POST"
         let (data, response) = try await URLSession.shared.data(for: request)
         try validate(response: response, data: data)
@@ -63,7 +64,8 @@ struct APIClient {
 
     func download(_ path: String, fileName: String? = nil) async throws -> URL {
         let sourceURL = resolve(path)
-        let (temporaryURL, response) = try await URLSession.shared.download(from: sourceURL)
+        let request = makeRequest(url: sourceURL, timeout: 240)
+        let (temporaryURL, response) = try await URLSession.shared.download(for: request)
         try validate(response: response, data: Data())
 
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
@@ -73,14 +75,40 @@ struct APIClient {
         return destination
     }
 
+    private func makeRequest(url: URL, timeout: TimeInterval) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = timeout
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("true", forHTTPHeaderField: "ngrok-skip-browser-warning")
+        request.setValue("CTVisionDemo/1.0 visionOS", forHTTPHeaderField: "User-Agent")
+        return request
+    }
+
     private func validate(response: URLResponse, data: Data) throws {
         guard let http = response as? HTTPURLResponse else {
             throw CTAPIError.invalidResponse
         }
         guard (200...299).contains(http.statusCode) else {
-            let message = String(data: data, encoding: .utf8) ?? HTTPURLResponse.localizedString(forStatusCode: http.statusCode)
+            let message = errorMessage(from: data, response: http)
             throw CTAPIError.requestFailed(http.statusCode, message)
         }
+    }
+
+    private func errorMessage(from data: Data, response: HTTPURLResponse) -> String {
+        if
+            let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let detail = jsonObject["detail"]
+        {
+            return String(describing: detail)
+        }
+
+        let contentType = response.value(forHTTPHeaderField: "Content-Type")?.lowercased() ?? ""
+        if contentType.contains("text/html") {
+            return "The backend URL returned an HTML page instead of API JSON. If this is an ngrok URL, rerun the rebuilt app and confirm the URL is the https forwarding URL for port 8000."
+        }
+
+        let raw = String(data: data, encoding: .utf8) ?? HTTPURLResponse.localizedString(forStatusCode: response.statusCode)
+        return raw.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -220,13 +248,13 @@ final class CTViewModel: ObservableObject {
     }
 
     func captureCurrent3DView() {
-        guard let snapshot = currentWindowPNGBase64() else {
+        guard let snapshot = currentWindowImageBase64() else {
             snapshotStatusText = "Could not capture the current Vision window."
             return
         }
-        capturedSnapshotBase64 = snapshot
+        capturedSnapshotBase64 = snapshot.encoded
         isModelInteractionLocked = true
-        snapshotStatusText = "3D view captured. Ask a question about this frozen view."
+        snapshotStatusText = "3D view captured (\(snapshot.kilobytes) KB). Ask about this frozen view."
     }
 
     func releaseCurrent3DView() {
@@ -263,7 +291,10 @@ final class CTViewModel: ObservableObject {
             return
         }
         isModelInteractionLocked = true
-        await runBusy("Calling Gemini on frozen 3D view") {
+        isBusy = true
+        statusText = "Calling Gemini on frozen 3D view"
+        snapshotStatusText = "Calling Gemini on frozen 3D view..."
+        do {
             let request = SnapshotAnalyzeRequest(
                 imageBase64: snapshot,
                 userNote: snapshotQuestion,
@@ -275,11 +306,30 @@ final class CTViewModel: ObservableObject {
                 dryRun: false
             )
             let response: AnalyzeResponse = try await client().postJSON("/api/analyze-3d-snapshot", body: request)
-            snapshotAnalysisText = response.analysis
+            let trimmedAnalysis = response.analysis.trimmingCharacters(in: .whitespacesAndNewlines)
+            snapshotAnalysisText = trimmedAnalysis.isEmpty ? "Gemini returned an empty response for this frozen 3D view. Try recapturing the model closer to the anatomy and asking a more specific question." : response.analysis
             snapshotStatusText = "\(response.provider ?? "gemini") \(response.model) analyzed the frozen 3D view."
             statusText = snapshotStatusText
+        } catch {
+            let message = snapshotRequestErrorText(error)
+            snapshotStatusText = "3D Gemini request failed."
+            snapshotAnalysisText = message
+            statusText = message
         }
+        isBusy = false
         isModelInteractionLocked = capturedSnapshotBase64 != nil
+    }
+
+    private func snapshotRequestErrorText(_ error: Error) -> String {
+        let description = error.localizedDescription
+        if description.contains("HTML page instead of API JSON") {
+            return """
+            The request did not reach the FastAPI JSON endpoint. The backend URL returned an HTML page, which usually means the Vision Pro app is hitting an ngrok/browser-warning page or the wrong forwarding URL.
+
+            Rebuild and rerun this app, keep `ngrok http 8000` running, and use the `https://...ngrok-free...` URL that points to the backend port 8000.
+            """
+        }
+        return "Gemini snapshot request failed: \(description)"
     }
 
     private func resetVisibleLabelsFromActiveAsset() {
@@ -299,7 +349,7 @@ final class CTViewModel: ObservableObject {
         modelFileURL = try await api.download(activeAsset.usdzURL, fileName: "\(activeAsset.id).usdz")
     }
 
-    private func currentWindowPNGBase64() -> String? {
+    private func currentWindowImageBase64() -> (encoded: String, kilobytes: Int)? {
         #if canImport(UIKit)
         guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first,
               let window = scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first else {
@@ -307,13 +357,30 @@ final class CTViewModel: ObservableObject {
         }
         let bounds = window.bounds
         guard bounds.width > 0, bounds.height > 0 else { return nil }
+        let stageCrop = CGRect(
+            x: min(430, bounds.width * 0.30),
+            y: bounds.height * 0.10,
+            width: max(240, bounds.width - min(430, bounds.width * 0.30) - min(470, bounds.width * 0.30)),
+            height: bounds.height * 0.78
+        ).intersection(bounds)
+        guard stageCrop.width > 0, stageCrop.height > 0 else { return nil }
+
+        let maxDimension: CGFloat = 960
+        let resizeScale = min(1, maxDimension / max(stageCrop.width, stageCrop.height))
+        let outputSize = CGSize(width: stageCrop.width * resizeScale, height: stageCrop.height * resizeScale)
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
-        let renderer = UIGraphicsImageRenderer(bounds: bounds, format: format)
-        let image = renderer.image { _ in
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: outputSize, format: format)
+        let image = renderer.image { context in
+            UIColor(white: 0.08, alpha: 1).setFill()
+            context.fill(CGRect(origin: .zero, size: outputSize))
+            context.cgContext.scaleBy(x: resizeScale, y: resizeScale)
+            context.cgContext.translateBy(x: -stageCrop.minX, y: -stageCrop.minY)
             window.drawHierarchy(in: bounds, afterScreenUpdates: true)
         }
-        return image.pngData()?.base64EncodedString()
+        guard let data = image.jpegData(compressionQuality: 0.58) else { return nil }
+        return (data.base64EncodedString(), max(1, data.count / 1024))
         #else
         return nil
         #endif
