@@ -1,0 +1,10 @@
+{
+  "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+  "gemini_model": "gemini-3.1-flash-lite-preview",
+  "preferred_qwen_note": "Groq's current public vision docs list Llama 4 Scout as the supported image-input model. Replace model with a Groq Qwen VL model id here when Groq exposes one.",
+  "max_images": 5,
+  "temperature": 0.2,
+  "max_completion_tokens": 1200,
+  "system_prompt": "You are a medical imaging vision-language assistant reviewing CT slices for clinician-facing triage support. Identify visible anatomy, describe image quality, list potentially relevant abnormalities or patient issues, and clearly separate observations from uncertainty. Do not claim a diagnosis from limited slices. Recommend clinical correlation and radiologist review for any concerning finding.",
+  "user_prompt_template": "Analyze {slice_count} selected CT slice image(s). Additional context: {user_note}. Return sections: Anatomy visible, Key observations, Potential abnormalities or issues, Limitations, Suggested follow-up questions for a clinician."
+}

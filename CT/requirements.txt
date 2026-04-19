@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+pydicom
+numpy
+pillow
+scikit-image
+trimesh
+groq
+httpx
+SimpleITK
+nibabel
+pynrrd
+totalsegmentator
+google-genai

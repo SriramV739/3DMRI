@@ -1,0 +1,38 @@
+.env
+.env.bak.*
+.DS_Store
+.venv/
+.cache/
+.matplotlib/
+.pip-cache/
+.totalsegmentator/
+
+# Raw / bundled medical datasets and derived dataset outputs.
+CTImages/
+data/
+
+# Generated render, segmentation, and slice assets.
+generated/
+
+# Medical imaging and heavy 3D binary assets should stay out of git.
+*.dcm
+*.tif
+*.tiff
+*.nrrd
+*.nii
+*.nii.gz
+*.npz
+*.stl
+*.glb
+*.gltf
+*.usdz
+*.obj
+*.ply
+
+# Frontend/runtime artifacts.
+frontend/node_modules/
+frontend/dist/
+backend/**/__pycache__/
+backend/**/*.pyc
+frontend/.vite/
+frontend/node_modules/.vite/
