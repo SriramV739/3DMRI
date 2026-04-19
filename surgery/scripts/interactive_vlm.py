@@ -13,7 +13,7 @@ import html
 from dataclasses import dataclass
 from pathlib import Path
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-from urllib.parse import quote, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 import cv2
 import numpy as np
@@ -47,6 +47,7 @@ LIVE_OVERLAY_DEFAULTS = {
     "replace_on_new_query": True,
     "short_term_seconds": 6.0,
 }
+LOCAL_VIDEO_SERVER_URL = "http://localhost:8503"
 OVERLAY_UPDATE_TOKENS = ("highlight", "segment", "outline", "show", "mark")
 OVERLAY_CLEAR_TOKENS = ("clear overlay", "remove overlay", "stop highlighting")
 OVERLAY_NEGATIVE_TOKENS = (
@@ -1267,9 +1268,17 @@ def start_report_worker(*, state: StreamState, cfg: dict):
             )
             report_path = surgery_log.session_dir / "draft_report.md"
             report_path.write_text(report_text, encoding="utf-8")
+            report_pdf_path = surgery_log.session_dir / "draft_report.pdf"
+            report_pdf_path.write_bytes(
+                SurgeryReportGenerator.to_pdf_bytes(
+                    report_text,
+                    title=f"Surgery Report - {surgery_log.video_name}",
+                )
+            )
             state.append_log_event(
                 "final_report_generated",
                 report_path=str(report_path),
+                report_pdf_path=str(report_pdf_path),
                 keyframe_count=len(keyframes),
             )
             state.finish_report_generation(
@@ -1431,14 +1440,27 @@ def start_video_server(config_path: str, groq_key: str, roboflow_key: str, initi
     start_overlay_worker(cfg=cfg, state=state)
 
     class MJPEGHandler(BaseHTTPRequestHandler):
+        def _send_text(self, status_code: int, body: str):
+            body_bytes = body.encode("utf-8")
+            self.send_response(status_code)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body_bytes)))
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(body_bytes)
+
         def do_GET(self):
-            request_path = urlparse(self.path).path
+            parsed = urlparse(self.path)
+            request_path = parsed.path
             if request_path == '/video_feed':
                 self.send_response(200)
                 self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=frame')
                 self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
                 self.send_header('Pragma', 'no-cache')
                 self.send_header('Connection', 'close')
+                self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 try:
                     for frame_bytes in run_mjpeg_loop(cfg, state):
@@ -1446,6 +1468,30 @@ def start_video_server(config_path: str, groq_key: str, roboflow_key: str, initi
                         self.wfile.flush()
                 except Exception as e:
                     print(f"Stream interrupted: {e}")
+            elif request_path == "/control":
+                query = parse_qs(parsed.query)
+                action = str(query.get("action", [""])[0]).strip().lower()
+                try:
+                    if action == "remove_overlay":
+                        label = str(query.get("label", [""])[0]).strip()
+                        if not label:
+                            self._send_text(400, "missing label")
+                            return
+                        state.remove_overlay_labels([label])
+                        state.append_log_event(
+                            "overlay_cleared",
+                            frame_idx=state.last_source_frame_idx,
+                            prompt="overlay key toggle",
+                            removed_targets=[label],
+                        )
+                        self._send_text(200, "ok")
+                    elif action == "clear_overlay":
+                        state.clear_overlay()
+                        self._send_text(200, "ok")
+                    else:
+                        self._send_text(400, f"unknown action: {action}")
+                except Exception as exc:
+                    self._send_text(500, str(exc))
             else:
                 self.send_response(404)
                 self.end_headers()
@@ -1527,7 +1573,28 @@ def main():
             box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255,255,255,0.08);
             padding: 0.9rem;
             height: calc(100vh - 2rem);
-            overflow: hidden;
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.24) transparent;
+        }
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(2) > [data-testid="stVerticalBlock"]::-webkit-scrollbar {
+            width: 10px;
+        }
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(2) > [data-testid="stVerticalBlock"]::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(2) > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.18);
+            border-radius: 999px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+        }
+        [data-testid="stHorizontalBlock"] > div:nth-of-type(2) > [data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.28);
+            border-radius: 999px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
         }
         .surgical-video-shell {
             position: relative;
@@ -1614,6 +1681,8 @@ def main():
         .overlay-swatch {width: 0.9rem; height: 0.9rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.65);}
         .overlay-mode {color: rgba(255,255,255,0.58); font-size: 0.75rem;}
         .overlay-toggle {
+            appearance: none;
+            cursor: pointer;
             color: rgba(255,255,255,0.82);
             font-size: 0.72rem;
             padding: 0.24rem 0.55rem;
@@ -1627,6 +1696,14 @@ def main():
             color: white;
             background: rgba(255,255,255,0.18);
             border-color: rgba(255,255,255,0.28);
+        }
+        .overlay-control-sink {
+            position: absolute;
+            width: 0;
+            height: 0;
+            border: 0;
+            opacity: 0;
+            pointer-events: none;
         }
         .copilot-title {
             font-size: 1rem;
@@ -1760,18 +1837,6 @@ def main():
     if state.target_video != initial_video:
         state.target_video = initial_video
     selected_video = initial_video
-    clear_overlay_label = st.query_params.get("clear_overlay")
-    if clear_overlay_label:
-        label_to_clear = clear_overlay_label[0] if isinstance(clear_overlay_label, list) else clear_overlay_label
-        state.remove_overlay_labels([str(label_to_clear)])
-        state.append_log_event(
-            "overlay_cleared",
-            frame_idx=state.last_source_frame_idx,
-            prompt="overlay key toggle",
-            removed_targets=[str(label_to_clear)],
-        )
-        del st.query_params["clear_overlay"]
-        st.rerun()
 
     # Layout: video-first workspace with a translucent copilot rail.
     col1, col2 = st.columns([7, 3], gap="small")
@@ -1784,11 +1849,14 @@ def main():
         key_rows = []
         for item in key_items:
             rgba = overlay_color_for_label(item["label"], cfg, pipeline)
+            remove_url = f"{LOCAL_VIDEO_SERVER_URL}/control?action=remove_overlay&label={quote(item['label'])}"
             key_rows.append(
                 "<div class='overlay-key-row'>"
                 f"<span class='overlay-swatch' style='background:{rgba_to_css(rgba)}'></span>"
                 f"<span>{item['name']}</span>"
-                f"<a class='overlay-toggle' href='?clear_overlay={quote(item['label'])}'>on</a>"
+                f"<form method='get' action='{remove_url}' target='overlay_control_sink' style='margin:0;'>"
+                "<button type='submit' class='overlay-toggle'>off</button>"
+                "</form>"
                 "</div>"
             )
         key_html = "".join(key_rows) if key_rows else "<div class='overlay-mode'>No active highlights</div>"
@@ -1809,7 +1877,7 @@ def main():
             elif overlay_status == "error":
                 status_text = f"Overlay error for '{active_overlay_query}': {overlay_error}"
 
-        video_src = f"http://127.0.0.1:8503/video_feed?video={selected_video}"
+        video_src = f"{LOCAL_VIDEO_SERVER_URL}/video_feed?video={selected_video}&ts={int(time.time() * 1000)}"
         st.markdown(
             "<div class='surgical-video-shell'>"
             "<div class='video-topbar'>"
@@ -1817,10 +1885,11 @@ def main():
             f"<span>{status_text}</span>"
             "</div>"
             f'<img src="{video_src}">'
+            "<iframe name='overlay_control_sink' class='overlay-control-sink' tabindex='-1' aria-hidden='true'></iframe>"
             "<div class='overlay-key-card'>"
             "<div class='overlay-key-title'>Highlight Key</div>"
             f"{key_html}"
-            "<div class='overlay-mode'>Click an on toggle to hide that highlight.</div>"
+            "<div class='overlay-mode'>Use off to remove a highlight without leaving the page.</div>"
             "</div>"
             "</div>",
             unsafe_allow_html=True
@@ -1899,6 +1968,16 @@ def main():
                 st.error(f"Report generation failed: {report_error}")
             elif report_status == "done":
                 st.caption(f"Draft report saved: {report_path}")
+                pdf_path = Path(report_path).with_suffix(".pdf")
+                if pdf_path.exists():
+                    with open(pdf_path, "rb") as pdf_handle:
+                        st.download_button(
+                            "Download Report PDF",
+                            data=pdf_handle.read(),
+                            file_name=pdf_path.name,
+                            mime="application/pdf",
+                            use_container_width=True,
+                        )
                 st.markdown(report_text)
 
         st.markdown(render_chat_history_html(st.session_state.chat_history), unsafe_allow_html=True)

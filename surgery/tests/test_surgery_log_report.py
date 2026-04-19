@@ -118,3 +118,21 @@ def test_vlm_report_retries_text_only_after_vision_400(tmp_path, monkeypatch):
     assert len(calls) == 2
     assert isinstance(calls[0], list)
     assert isinstance(calls[1], str)
+
+
+def test_report_pdf_export_generates_pdf_bytes():
+    report_text = (
+        "# AI-Generated Draft Surgery Documentation\n\n"
+        "## Procedure Context\n"
+        "- Video/session: clip_002\n"
+        "- Logged events reviewed: 12\n\n"
+        "## Notes\n"
+        "This is a simple surgeon-review draft."
+    )
+
+    pdf_bytes = SurgeryReportGenerator.to_pdf_bytes(report_text, title="Surgery Report - clip_002")
+
+    assert pdf_bytes.startswith(b"%PDF-1.4")
+    assert b"/Type /Catalog" in pdf_bytes
+    assert b"/Type /Page" in pdf_bytes
+    assert len(pdf_bytes) > 500

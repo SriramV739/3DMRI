@@ -5,6 +5,8 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
+import textwrap
 from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, Iterable, Sequence
@@ -51,6 +53,12 @@ class SurgeryReportGenerator:
                     + f"VLM report generation failed and a structured fallback was used: {exc}"
                 )
         return self._generate_rule_based(events=events, metadata=metadata)
+
+    @staticmethod
+    def to_pdf_bytes(report_text: str, *, title: str = "Surgery Report") -> bytes:
+        plain_text = SurgeryReportGenerator._markdown_to_plain_text(report_text)
+        lines = SurgeryReportGenerator._paginate_pdf_lines(title=title, report_text=plain_text)
+        return SurgeryReportGenerator._build_simple_pdf(lines)
 
     def _generate_with_vlm(
         self,
@@ -241,3 +249,132 @@ class SurgeryReportGenerator:
             + "\n\n## Documentation Limitations\n"
             + "\n".join(f"- {uncertainty}" for uncertainty in uncertainties)
         )
+
+    @staticmethod
+    def _markdown_to_plain_text(text: str) -> str:
+        plain = text.replace("\r\n", "\n").replace("\r", "\n")
+        plain = re.sub(r"^#{1,6}\s*", "", plain, flags=re.MULTILINE)
+        plain = re.sub(r"^\s*[-*]\s+", "- ", plain, flags=re.MULTILINE)
+        plain = re.sub(r"[*_`]+", "", plain)
+        plain = re.sub(r"\n{3,}", "\n\n", plain)
+        return plain.strip()
+
+    @staticmethod
+    def _paginate_pdf_lines(*, title: str, report_text: str) -> list[list[str]]:
+        width = 92
+        page_line_limit = 48
+        wrapped_lines: list[str] = [title, ""]
+        for paragraph in report_text.split("\n"):
+            stripped = paragraph.strip()
+            if not stripped:
+                wrapped_lines.append("")
+                continue
+            if stripped.startswith("- "):
+                bullet = stripped[:2]
+                body = stripped[2:].strip()
+                bullet_lines = textwrap.wrap(body, width=max(12, width - len(bullet)))
+                if not bullet_lines:
+                    wrapped_lines.append("-")
+                    continue
+                wrapped_lines.append(bullet + bullet_lines[0])
+                for continuation in bullet_lines[1:]:
+                    wrapped_lines.append("  " + continuation)
+                continue
+            wrapped_lines.extend(textwrap.wrap(stripped, width=width) or [""])
+
+        pages: list[list[str]] = []
+        current_page: list[str] = []
+        for line in wrapped_lines:
+            current_page.append(line)
+            if len(current_page) >= page_line_limit:
+                pages.append(current_page)
+                current_page = []
+        if current_page or not pages:
+            pages.append(current_page)
+        return pages
+
+    @staticmethod
+    def _pdf_escape(text: str) -> str:
+        normalized = text.encode("latin-1", "replace").decode("latin-1")
+        return normalized.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+    @staticmethod
+    def _build_simple_pdf(pages: Sequence[Sequence[str]]) -> bytes:
+        objects: list[bytes] = []
+
+        def add_object(payload: bytes) -> int:
+            objects.append(payload)
+            return len(objects)
+
+        font_id = add_object(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+        page_ids: list[int] = []
+        content_ids: list[int] = []
+        page_size = (612, 792)
+        left = 54
+        top = 738
+        line_height = 14
+
+        for page_lines in pages:
+            stream_lines = [
+                "BT",
+                "/F1 11 Tf",
+                f"{left} {top} Td",
+                f"{line_height} TL",
+            ]
+            for idx, line in enumerate(page_lines):
+                escaped = SurgeryReportGenerator._pdf_escape(line)
+                if idx == 0:
+                    stream_lines.append(f"({escaped}) Tj")
+                else:
+                    stream_lines.append(f"T* ({escaped}) Tj")
+            stream_lines.append("ET")
+            stream_bytes = "\n".join(stream_lines).encode("latin-1", "replace")
+            content_id = add_object(
+                b"<< /Length " + str(len(stream_bytes)).encode("ascii") + b" >>\nstream\n" + stream_bytes + b"\nendstream"
+            )
+            content_ids.append(content_id)
+            page_id = add_object(b"")
+            page_ids.append(page_id)
+
+        kids = " ".join(f"{page_id} 0 R" for page_id in page_ids).encode("ascii")
+        pages_id = add_object(b"<< /Type /Pages /Kids [" + kids + b"] /Count " + str(len(page_ids)).encode("ascii") + b" >>")
+        catalog_id = add_object(b"<< /Type /Catalog /Pages " + str(pages_id).encode("ascii") + b" 0 R >>")
+
+        for page_id, content_id in zip(page_ids, content_ids):
+            objects[page_id - 1] = (
+                b"<< /Type /Page /Parent "
+                + str(pages_id).encode("ascii")
+                + b" 0 R /MediaBox [0 0 "
+                + str(page_size[0]).encode("ascii")
+                + b" "
+                + str(page_size[1]).encode("ascii")
+                + b"] /Resources << /Font << /F1 "
+                + str(font_id).encode("ascii")
+                + b" 0 R >> >> /Contents "
+                + str(content_id).encode("ascii")
+                + b" 0 R >>"
+            )
+
+        pdf = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+        offsets = [0]
+        for idx, payload in enumerate(objects, start=1):
+            offsets.append(len(pdf))
+            pdf.extend(f"{idx} 0 obj\n".encode("ascii"))
+            pdf.extend(payload)
+            pdf.extend(b"\nendobj\n")
+
+        xref_offset = len(pdf)
+        pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+        pdf.extend(b"0000000000 65535 f \n")
+        for offset in offsets[1:]:
+            pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+        pdf.extend(
+            (
+                "trailer\n"
+                f"<< /Size {len(objects) + 1} /Root {catalog_id} 0 R >>\n"
+                "startxref\n"
+                f"{xref_offset}\n"
+                "%%EOF\n"
+            ).encode("ascii")
+        )
+        return bytes(pdf)
