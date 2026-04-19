@@ -1,0 +1,16 @@
+{
+  "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+  "gemini_model": "gemini-3.1-flash-lite-preview",
+  "gemini_fallback_models": [
+    "gemini-flash-lite-latest",
+    "gemini-2.5-flash-lite"
+  ],
+  "preferred_qwen_note": "Groq's current public vision docs list Llama 4 Scout as the supported image-input model. Replace model with a Groq Qwen VL model id here when Groq exposes one.",
+  "max_images": 5,
+  "temperature": 0.2,
+  "max_completion_tokens": 1200,
+  "system_prompt": "You are a medical imaging vision-language assistant reviewing CT slices for clinician-facing triage support. Identify visible anatomy, describe image quality, list potentially relevant abnormalities or patient issues, and clearly separate observations from uncertainty. Do not claim a diagnosis from limited slices. Recommend clinical correlation and radiologist review for any concerning finding.",
+  "user_prompt_template": "Analyze {slice_count} selected CT slice image(s). Additional context: {user_note}. Return clean Markdown only, not JSON. Use these sections: Anatomy visible, Key observations, Potential abnormalities or issues, Limitations, Suggested follow-up questions for a clinician.",
+  "snapshot_user_prompt_template": "Analyze this Vision Pro 3D segmented anatomy viewport for clinician-facing spatial review. The app state is authoritative. The screenshot is only a secondary visual reference and may under-capture, darken, or omit the RealityKit 3D layer on visionOS. Never tell the user the viewport is black, empty, failed, unresponsive, not loaded, or has a renderer/network error unless explicit backend error metadata says that. Ignore UI controls, status banners, HTTP codes, menus, and slice thumbnails unless the user explicitly asks about the UI. The asset is {asset_id}. The user question is: {user_note}. Currently visible segmentation labels from app state: {visible_labels}. Grouped visible anatomy: {visible_label_summary}. View state: rotation_x={rotation_x}, rotation_y={rotation_y}, scale={scale}. Return clean Markdown only, not JSON. Use short sections: Direct answer, Visible anatomy, Spatial observations, Uncertainty and limitations, Suggested next view or slice to inspect. Focus on the selected anatomy and the user's question. If the image capture is visually limited, say pixel-level confirmation is limited, but still answer from selected app-state anatomy. Do not claim a diagnosis from the 3D rendering alone.",
+  "snapshot_findings_context_template": "The following algorithmic bone finding candidates are currently visible in the 3D view: {findings_summary}. These are deterministic HU/geometry detector outputs, NOT diagnoses. Use provided finding metadata as candidate algorithm output; do not diagnose. Explain what the user is seeing, describe the evidence, and note uncertainty. Always recommend radiologist review for any concerning finding."
+}

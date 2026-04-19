@@ -1,0 +1,51 @@
+# ─── Secrets & environment ───
+.env
+.env.bak.*
+
+# ─── macOS ───
+.DS_Store
+**/.DS_Store
+
+# ─── Python virtualenv / caches ───
+.venv/
+.cache/
+.matplotlib/
+.pip-cache/
+.totalsegmentator/
+__pycache__/
+*.pyc
+*.pyo
+
+# ─── Raw / bundled medical datasets and derived dataset outputs ───
+CTImages/
+data/
+
+# ─── Generated render, segmentation, slice, and findings assets ───
+generated/
+
+# ─── Medical imaging and heavy 3D binary assets ───
+*.dcm
+*.tif
+*.tiff
+*.nrrd
+*.nii
+*.nii.gz
+*.npz
+*.stl
+*.glb
+*.gltf
+*.usdz
+*.obj
+*.ply
+
+# ─── Frontend / Node.js ───
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# ─── Xcode / visionOS build artifacts ───
+VisionProDemo/DerivedData/
+VisionProDemo/PreviewCaptures/
+VisionProDemo/**/*.xcuserdata/
+VisionProDemo/**/*.xcuserstate
+VisionProDemo/**/xcuserdata/
