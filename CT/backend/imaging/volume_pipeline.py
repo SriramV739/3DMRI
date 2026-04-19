@@ -170,5 +170,18 @@ def load_volume_manifests() -> list[dict[str, Any]]:
     settings.ensure_generated_dirs()
     manifests = []
     for path in sorted(settings.GENERATED_VOLUMES_DIR.glob("*.json")):
-        manifests.append(json.loads(path.read_text(encoding="utf-8")))
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        findings_path = settings.GENERATED_FINDINGS_DIR / manifest.get("id", "") / "findings.json"
+        if findings_path.exists():
+            try:
+                findings_data = json.loads(findings_path.read_text(encoding="utf-8"))
+                manifest["findings_available"] = True
+                manifest["finding_count"] = findings_data.get("finding_count", 0)
+            except (json.JSONDecodeError, KeyError):
+                manifest["findings_available"] = False
+                manifest["finding_count"] = 0
+        else:
+            manifest["findings_available"] = False
+            manifest["finding_count"] = 0
+        manifests.append(manifest)
     return sorted(manifests, key=lambda item: (0 if item.get("kind") == "totalsegmentator" else 1, item.get("id", "")))

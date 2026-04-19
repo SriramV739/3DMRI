@@ -38,3 +38,16 @@ export function analyzeSlices(sliceIds, userNote = '', dryRun = false, provider 
     body: JSON.stringify({ slice_ids: sliceIds, user_note: userNote, dry_run: dryRun, provider })
   });
 }
+
+export function getBoneFindings(sourceId) {
+  return request(`/api/findings/bones/${encodeURIComponent(sourceId)}`);
+}
+
+export function runBoneFindings(sourceId, { force = false, minConfidence = 0.55 } = {}) {
+  const params = new URLSearchParams({
+    source_id: sourceId,
+    force: String(force),
+    min_confidence: String(minConfidence),
+  });
+  return request(`/api/findings/bones/run?${params.toString()}`, { method: 'POST' });
+}

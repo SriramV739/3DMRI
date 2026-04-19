@@ -1,20 +1,29 @@
+# ─── Secrets & environment ───
 .env
 .env.bak.*
+
+# ─── macOS ───
 .DS_Store
+**/.DS_Store
+
+# ─── Python virtualenv / caches ───
 .venv/
 .cache/
 .matplotlib/
 .pip-cache/
 .totalsegmentator/
+__pycache__/
+*.pyc
+*.pyo
 
-# Raw / bundled medical datasets and derived dataset outputs.
+# ─── Raw / bundled medical datasets and derived dataset outputs ───
 CTImages/
 data/
 
-# Generated render, segmentation, and slice assets.
+# ─── Generated render, segmentation, slice, and findings assets ───
 generated/
 
-# Medical imaging and heavy 3D binary assets should stay out of git.
+# ─── Medical imaging and heavy 3D binary assets ───
 *.dcm
 *.tif
 *.tiff
@@ -29,10 +38,14 @@ generated/
 *.obj
 *.ply
 
-# Frontend/runtime artifacts.
+# ─── Frontend / Node.js ───
 frontend/node_modules/
 frontend/dist/
-backend/**/__pycache__/
-backend/**/*.pyc
 frontend/.vite/
-frontend/node_modules/.vite/
+
+# ─── Xcode / visionOS build artifacts ───
+VisionProDemo/DerivedData/
+VisionProDemo/PreviewCaptures/
+VisionProDemo/**/*.xcuserdata/
+VisionProDemo/**/*.xcuserstate
+VisionProDemo/**/xcuserdata/

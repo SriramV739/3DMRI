@@ -5,6 +5,7 @@ This folder contains an end-to-end CT imaging prototype:
 - FastAPI backend for DICOM ingestion, CT pseudo-coloring, 3D mesh export, and Groq VLM calls.
 - TotalSegmentator pipeline for `data/raw/CT-chest.nrrd` anatomical segmentation and realistic GLB mesh generation.
 - React + Three.js frontend with orbit controls and `@react-three/xr` AR/VR entry points for WebXR-capable browsers, including Apple Vision Pro Safari when WebXR is enabled by the device/browser.
+- Native visionOS SwiftUI + RealityKit app in `VisionProDemo` for Apple Vision Pro simulator/device workflows.
 - CT-local environment files only. Raw input stays in `CTImages`.
 
 ## Setup
@@ -49,6 +50,21 @@ Run the required 10-render batch test:
 
 Generated GLB volumes and JSON manifests are saved under `generated/volumes`. Pseudo-colored slice PNGs are saved under `generated/slices`.
 
+Run the standalone rib-fracture stress test:
+
+```bash
+.venv/bin/python -m unittest tests.test_synthetic_rib_fracture_render -v
+```
+
+This test is independent of the app/backend rendering pipeline. It creates a synthetic CT-like rib cage with a known displaced, jagged left rib fracture, exports bone-only and annotated GLB meshes, and writes preview artifacts to:
+
+- `generated/test_renders/synthetic_rib_fracture/realistic_left_rib_fracture_bone_only.glb`
+- `generated/test_renders/synthetic_rib_fracture/realistic_left_rib_fracture_annotated.glb`
+- `generated/test_renders/synthetic_rib_fracture/realistic_left_rib_fracture_bone_only_closeup.png`
+- `generated/test_renders/synthetic_rib_fracture/realistic_left_rib_fracture_annotated_closeup.png`
+- `generated/test_renders/synthetic_rib_fracture/synthetic_left_rib_fracture_projection.png`
+- `generated/test_renders/synthetic_rib_fracture/synthetic_left_rib_fracture_metadata.json`
+
 ## TotalSegmentator Chest Render
 
 The TotalSegmentator path uses:
@@ -84,6 +100,71 @@ Outputs:
 - Viewer GLB: `generated/volumes/totalseg_CT_chest_realistic.glb`
 - Viewer manifest: `generated/volumes/totalseg_CT_chest_realistic.json`
 
+## Vision Pro Native App
+
+The native app is in:
+
+```text
+VisionProDemo/CTVisionDemo.xcodeproj
+```
+
+It uses this runtime architecture:
+
+```text
+Vision Pro native app
+  -> downloads a local-backend USDZ anatomy model
+  -> shows grouped native organ visibility controls based on detected anatomy
+  -> loads CT slice thumbnails from FastAPI
+  -> captures the current 3D viewport and sends it with a typed question to Gemini
+  -> sends selected slices plus a typed prompt to Gemini through FastAPI
+```
+
+Generate the Vision Pro optimized model from the TotalSegmentator render:
+
+```bash
+.venv/bin/python backend/scripts/export_visionos_assets.py --source-id totalseg_CT_chest_realistic --quality balanced
+```
+
+This creates:
+
+- `generated/visionos/totalseg_CT_chest_realistic_visionos_balanced.usdz`
+- `generated/visionos/totalseg_CT_chest_realistic_visionos_balanced.glb`
+- `generated/visionos/totalseg_CT_chest_realistic_visionos_balanced.json`
+
+The balanced asset is currently about 49 MB as USDZ, with 86 named anatomy meshes and about 629k vertices.
+
+Build the visionOS simulator app from the `CT` folder:
+
+```bash
+xcodebuild -project VisionProDemo/CTVisionDemo.xcodeproj \
+  -scheme CTVisionDemo \
+  -configuration Debug \
+  -sdk xrsimulator26.4 \
+  -destination 'platform=visionOS Simulator,name=Apple Vision Pro' \
+  CODE_SIGNING_ALLOWED=NO \
+  build
+```
+
+Run it in Xcode:
+
+1. Open `VisionProDemo/CTVisionDemo.xcodeproj`.
+2. Select the Apple Vision Pro simulator or your paired Vision Pro.
+3. Start the backend:
+
+   ```bash
+   .venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+   ```
+
+4. In the native app, use `http://127.0.0.1:8000` for the simulator. On a physical Vision Pro, use the Mac Wi-Fi IP, for example `http://192.168.1.23:8000`.
+5. Press Connect. The app downloads the USDZ, shows grouped organ controls, displays slice thumbnails, and sends selected slices or the current 3D snapshot to Gemini.
+
+For 3D model questions, use the `3D View Question` panel:
+
+1. Rotate and zoom the model to the view you want to ask about.
+2. Press `Capture`; the app freezes the 3D interaction state and stores the current viewport image.
+3. Type your question and press `Ask Gemini`.
+4. Press the unlock button to release the frozen view and continue exploring.
+
 ## Start Backend
 
 ```bash
@@ -96,6 +177,8 @@ Useful routes:
 - `GET /api/slices`
 - `POST /api/process?limit=10`
 - `POST /api/process-totalseg`
+- `GET /api/visionos/assets`
+- `POST /api/visionos/export`
 - `GET /api/volumes`
 - `POST /api/analyze`
 - `POST /api/gemini-test`
@@ -182,7 +265,7 @@ For immersive WebXR on Vision Pro, Safari must expose the WebXR Device API. If t
 
 The VLM prompt and model are editable in `vlm_config.json`. Groq's current public vision documentation lists `meta-llama/llama-4-scout-17b-16e-instruct` as a supported image-input model. Qwen models currently listed on Groq are text-only, so this app defaults to Llama 4 Scout as the closest supported multimodal model. When Groq exposes a Qwen VL model ID, replace the `model` field in `vlm_config.json`.
 
-Gemini is also available via `GEMINI_API_KEY` and defaults to `gemini-2.5-flash-lite` to keep multimodal image-and-text calls on a lower-cost Gemini model.
+Gemini is also available via `GEMINI_API_KEY` and defaults to `gemini-3.1-flash-lite-preview`. If Google returns a temporary high-demand/provider error for that preview model, the backend automatically tries the configured `gemini_fallback_models` so the Vision Pro app gets an analysis response instead of a generic 500.
 
 The prompt asks the model to identify anatomy, summarize observations, flag potential abnormalities or patient issues, and separate uncertainty from findings. This is triage support only and is not a diagnostic substitute for radiologist review.
 

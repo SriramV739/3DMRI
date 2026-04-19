@@ -12,8 +12,10 @@ from pydantic import BaseModel
 from backend import settings
 from backend.imaging.dicom_io import discover_slices, ensure_slice_preview_png
 from backend.imaging.totalseg_pipeline import generate_totalseg_chest
+from backend.imaging.visionos_export import export_visionos_asset, load_visionos_manifests
+from backend.imaging.bone_findings_pipeline import load_bone_findings_manifest, run_bone_findings
 from backend.imaging.volume_pipeline import generate_batch, load_volume_manifests
-from backend.vlm_client import analyze_slices, analyze_slices_gemini, test_gemini_key
+from backend.vlm_client import analyze_slices, analyze_slices_gemini, analyze_snapshot_gemini, test_gemini_key
 
 
 app = FastAPI(title="CT Spatial VLM Imaging API", version="0.1.0")
@@ -39,6 +41,17 @@ class AnalyzeRequest(BaseModel):
     user_note: str | None = None
     dry_run: bool = False
     provider: str = "groq"
+
+
+class SnapshotAnalyzeRequest(BaseModel):
+    image_base64: str
+    user_note: str | None = None
+    asset_id: str | None = None
+    visible_labels: list[str] = []
+    rotation_x: float | None = None
+    rotation_y: float | None = None
+    scale: float | None = None
+    dry_run: bool = False
 
 
 @app.get("/api/health")
@@ -87,6 +100,11 @@ def volumes() -> list[dict[str, object]]:
     return load_volume_manifests()
 
 
+@app.get("/api/visionos/assets")
+def visionos_assets() -> list[dict[str, object]]:
+    return load_visionos_manifests()
+
+
 @app.post("/api/process")
 def process(limit: int = Query(default=10, ge=1, le=50), max_size: int = Query(default=176, ge=64, le=256)) -> list[dict[str, object]]:
     try:
@@ -113,13 +131,77 @@ def process_totalseg(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@app.post("/api/visionos/export")
+def process_visionos_export(
+    source_id: str = Query(default="totalseg_CT_chest_realistic"),
+    quality: str = Query(default="balanced", pattern="^(preview|balanced|hq)$"),
+    force: bool = Query(default=False),
+) -> dict[str, object]:
+    try:
+        return export_visionos_asset(source_id=source_id, quality_name=quality, force=force)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @app.post("/api/analyze")
 def analyze_json(request: AnalyzeRequest) -> dict[str, object]:
     if not request.slice_ids:
         raise HTTPException(status_code=422, detail="slice_ids must contain at least one slice id")
-    if request.provider == "gemini":
-        return analyze_slices_gemini(request.slice_ids, user_note=request.user_note, dry_run=request.dry_run)
-    return analyze_slices(request.slice_ids, user_note=request.user_note, dry_run=request.dry_run)
+    try:
+        if request.provider == "gemini":
+            return analyze_slices_gemini(request.slice_ids, user_note=request.user_note, dry_run=request.dry_run)
+        return analyze_slices(request.slice_ids, user_note=request.user_note, dry_run=request.dry_run)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"{request.provider} analysis failed: {type(exc).__name__}: {exc}") from exc
+
+
+@app.post("/api/analyze-3d-snapshot")
+def analyze_3d_snapshot(request: SnapshotAnalyzeRequest) -> dict[str, object]:
+    if not request.image_base64.strip():
+        raise HTTPException(status_code=422, detail="image_base64 must contain a PNG snapshot")
+    try:
+        return analyze_snapshot_gemini(
+            image_base64=request.image_base64,
+            user_note=request.user_note,
+            asset_id=request.asset_id,
+            visible_labels=request.visible_labels,
+            rotation_x=request.rotation_x,
+            rotation_y=request.rotation_y,
+            scale=request.scale,
+            dry_run=request.dry_run,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"gemini 3D snapshot analysis failed: {type(exc).__name__}: {exc}") from exc
+
+
+@app.post("/api/findings/bones/run")
+def findings_bones_run(
+    source_id: str = Query(default="totalseg_CT_chest_realistic"),
+    force: bool = Query(default=False),
+    bone_labels: list[str] | None = Query(default=None),
+    min_confidence: float = Query(default=0.55, ge=0.0, le=1.0),
+) -> dict[str, object]:
+    try:
+        return run_bone_findings(
+            source_id=source_id,
+            force=force,
+            bone_labels=bone_labels or None,
+            min_confidence=min_confidence,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Bone findings failed: {type(exc).__name__}: {exc}") from exc
+
+
+@app.get("/api/findings/bones/{source_id}")
+def findings_bones_get(source_id: str) -> dict[str, object]:
+    try:
+        return load_bone_findings_manifest(source_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.post("/api/gemini-test")
@@ -141,8 +223,8 @@ def analyze_form(
     return analyze_slices(slice_ids, user_note=user_note, dry_run=dry_run)
 
 
-@app.get("/")
-def root() -> FileResponse | dict[str, str]:
+@app.get("/", response_model=None)
+def root():
     index_path = FRONTEND_DIST_DIR / "index.html"
     if index_path.exists():
         return FileResponse(index_path, media_type="text/html")

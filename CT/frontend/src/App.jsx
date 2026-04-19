@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Activity, Boxes, BrainCircuit, Check, ChevronDown, ChevronRight, Loader2, Play, RefreshCw, ScanLine, Search, X } from 'lucide-react';
-import { analyzeSlices, getSlices, getVolumes, processTotalSeg, processVolumes } from './api.js';
+import { Activity, AlertTriangle, Bone, Boxes, BrainCircuit, Check, ChevronDown, ChevronRight, Eye, EyeOff, Loader2, Play, RefreshCw, ScanLine, Search, X } from 'lucide-react';
+import { analyzeSlices, getBoneFindings, getSlices, getVolumes, processTotalSeg, processVolumes, runBoneFindings } from './api.js';
 import VolumeScene from './VolumeScene.jsx';
 
 const ORGAN_GROUPS = [
@@ -117,11 +117,12 @@ function OrganGroup({ group, visibleSet, onToggleLabel, onToggleGroup, onShowOnl
         <div className="organ-group-actions" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
-            className={allSelected ? 'active' : ''}
+            className={`organ-group-toggle ${allSelected ? 'active' : ''}`}
             onClick={() => onToggleGroup(group.labels)}
             title={allSelected ? `Hide ${group.label.toLowerCase()}` : `Show ${group.label.toLowerCase()}`}
           >
-            {allSelected ? 'Hide group' : 'Show group'}
+            {allSelected ? <EyeOff size={13} /> : <Eye size={13} />}
+            <span>{allSelected ? 'Hide' : 'Show'}</span>
           </button>
           <button type="button" onClick={() => onShowOnly(group.labels)}>
             Only
@@ -166,6 +167,8 @@ export default function App() {
   const [visibleAnatomyLabels, setVisibleAnatomyLabels] = useState([]);
   const [organQuery, setOrganQuery] = useState('');
   const [organDropdownOpen, setOrganDropdownOpen] = useState(true);
+  const [findings, setFindings] = useState([]);
+  const [visibleFindingLabels, setVisibleFindingLabels] = useState([]);
 
   async function refresh() {
     setError('');
@@ -224,6 +227,10 @@ export default function App() {
     () => selectedSlices.map((id) => slices.find((slice) => slice.id === id)).filter(Boolean),
     [selectedSlices, slices]
   );
+  const filteredOrganCount = useMemo(
+    () => filteredAnatomyGroups.reduce((count, group) => count + group.labels.length, 0),
+    [filteredAnatomyGroups]
+  );
 
   useEffect(() => {
     if (!anatomyLabels.length) {
@@ -235,8 +242,50 @@ export default function App() {
 
   useEffect(() => {
     setOrganQuery('');
-    setOrganDropdownOpen(true);
   }, [activeVolumeId]);
+
+  useEffect(() => {
+    if (!activeVolume?.id || activeVolume.kind !== 'totalsegmentator') {
+      setFindings([]);
+      setVisibleFindingLabels([]);
+      return;
+    }
+    getBoneFindings(activeVolume.id)
+      .then((data) => {
+        const items = data?.findings || [];
+        setFindings(items);
+        setVisibleFindingLabels(items.map((f) => f.mesh_label));
+      })
+      .catch(() => {
+        setFindings([]);
+        setVisibleFindingLabels([]);
+      });
+  }, [activeVolume?.id, activeVolume?.kind]);
+
+  const visibleFindingSet = useMemo(() => new Set(visibleFindingLabels), [visibleFindingLabels]);
+
+  function toggleFindingLabel(meshLabel) {
+    setVisibleFindingLabels((current) =>
+      current.includes(meshLabel) ? current.filter((l) => l !== meshLabel) : [...current, meshLabel]
+    );
+  }
+
+  async function handleRunBoneFindings() {
+    if (!activeVolume?.id) return;
+    setBusy('findings');
+    setError('');
+    try {
+      const data = await runBoneFindings(activeVolume.id, { force: true });
+      const items = data?.findings || [];
+      setFindings(items);
+      setVisibleFindingLabels(items.map((f) => f.mesh_label));
+      await refresh();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy('');
+    }
+  }
 
   function toggleSlice(id) {
     setSelectedSlices((current) =>
@@ -347,7 +396,7 @@ export default function App() {
         volume={activeVolume}
         onReset={() => setSceneKey((value) => value + 1)}
         organFilterEnabled={organFilteringEnabled}
-        visibleLabels={visibleAnatomyLabels}
+        visibleLabels={[...visibleAnatomyLabels, ...visibleFindingLabels]}
       />
       <aside className="analysis-pane">
         <header className="topbar">
@@ -407,13 +456,17 @@ export default function App() {
               >
                 <span className="organ-dropdown-trigger-left">
                   {organDropdownOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  Organ list and filters
+                  Detected organ list
                 </span>
-                <small>{visibleAnatomyLabels.length} selected</small>
+                <small>{visibleAnatomyLabels.length}/{anatomyLabels.length} visible</small>
               </button>
 
               {organDropdownOpen && (
                 <div className="organ-dropdown-content">
+                  <div className="organ-detected-note">
+                    <span>{anatomyLabels.length} organs detected in the active 3D volume</span>
+                    <span>{filteredOrganCount} shown in this list</span>
+                  </div>
                   <div className="organ-quick-actions">
                     <button type="button" onClick={() => setVisibleAnatomyLabels(anatomyLabels)} disabled={visibleAnatomyLabels.length === anatomyLabels.length}>
                       Show all
@@ -467,6 +520,76 @@ export default function App() {
                 </div>
               )}
               </div>
+          </section>
+        )}
+
+        {organFilteringEnabled && (
+          <section className="findings-panel">
+            <div className="findings-panel-header">
+              <div className="findings-panel-header-left">
+                <Bone size={16} />
+                <h2>Bone Findings</h2>
+              </div>
+              <div className="findings-panel-header-right">
+                {findings.length > 0 && (
+                  <span className="findings-count-badge">
+                    {findings.length} candidate{findings.length !== 1 ? 's' : ''}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="findings-run-btn"
+                  onClick={handleRunBoneFindings}
+                  disabled={busy === 'findings'}
+                  title="Run bone fracture detection"
+                >
+                  {busy === 'findings' ? <Loader2 className="spin" size={14} /> : <Play size={14} />}
+                  <span>Detect</span>
+                </button>
+              </div>
+            </div>
+
+            {findings.length === 0 ? (
+              <div className="findings-empty">
+                <AlertTriangle size={16} />
+                <span>No bone findings detected yet. Press Detect to run analysis.</span>
+              </div>
+            ) : (
+              <div className="findings-body">
+                <div className="findings-disclaimer">
+                  <AlertTriangle size={13} />
+                  <span>Algorithmic candidates only — radiologist review required</span>
+                </div>
+                <div className="findings-list">
+                  {findings.map((finding) => {
+                    const visible = visibleFindingSet.has(finding.mesh_label);
+                    const isHighConf = finding.confidence >= 0.70;
+                    return (
+                      <label
+                        key={finding.id}
+                        className={`finding-card ${visible ? 'active' : ''} ${isHighConf ? 'high-conf' : 'med-conf'}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={visible}
+                          onChange={() => toggleFindingLabel(finding.mesh_label)}
+                        />
+                        <span className="finding-check-box">
+                          {visible && <Check size={11} strokeWidth={3} />}
+                        </span>
+                        <div className="finding-info">
+                          <span className="finding-label">{finding.label}</span>
+                          <span className="finding-bone">{formatAnatomyLabel(finding.bone_label)}</span>
+                        </div>
+                        <span className={`finding-confidence ${isHighConf ? 'high' : 'med'}`}>
+                          {Math.round(finding.confidence * 100)}%
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </section>
         )}
 

@@ -20,6 +20,8 @@ GENERATED_TOTALSEG_DIR = GENERATED_DIR / "totalseg"
 GENERATED_TOTALSEG_INPUTS_DIR = GENERATED_TOTALSEG_DIR / "converted_inputs"
 GENERATED_TOTALSEG_SEGMENTATIONS_DIR = GENERATED_TOTALSEG_DIR / "segmentations"
 GENERATED_TOTALSEG_MESHES_DIR = GENERATED_TOTALSEG_DIR / "meshes"
+GENERATED_FINDINGS_DIR = GENERATED_DIR / "findings"
+GENERATED_VISIONOS_DIR = GENERATED_DIR / "visionos"
 VLM_CONFIG_PATH = BASE_DIR / "vlm_config.json"
 
 load_dotenv(BASE_DIR / ".env")
@@ -34,3 +36,5 @@ def ensure_generated_dirs() -> None:
     GENERATED_TOTALSEG_INPUTS_DIR.mkdir(parents=True, exist_ok=True)
     GENERATED_TOTALSEG_SEGMENTATIONS_DIR.mkdir(parents=True, exist_ok=True)
     GENERATED_TOTALSEG_MESHES_DIR.mkdir(parents=True, exist_ok=True)
+    GENERATED_FINDINGS_DIR.mkdir(parents=True, exist_ok=True)
+    GENERATED_VISIONOS_DIR.mkdir(parents=True, exist_ok=True)

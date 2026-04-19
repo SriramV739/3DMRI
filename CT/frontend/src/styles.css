@@ -203,7 +203,7 @@ h1 {
   font-size: 22px;
   font-weight: 800;
   line-height: 1.15;
-  letter-spacing: -0.3px;
+  letter-spacing: 0;
 }
 
 h2 {
@@ -330,35 +330,42 @@ textarea {
    ═══════════════════════════════════════════════════════════════════════ */
 .organ-panel {
   display: flex;
+  min-width: 0;
   flex-direction: column;
-  border: 1px solid var(--border-accent);
-  border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, rgba(15, 25, 40, 0.95), rgba(10, 18, 28, 0.98));
+  border: 1px solid rgba(45, 212, 191, 0.26);
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(12, 23, 34, 0.98), rgba(12, 17, 27, 0.98));
   overflow: hidden;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), var(--shadow-md);
 }
 
 .organ-panel-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  background: transparent;
+  gap: 12px;
+  padding: 14px;
   color: var(--text-primary);
 }
 
 .organ-panel-header-left {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 8px;
 }
 
 .organ-panel-header-left h2 {
+  min-width: 0;
+  overflow: hidden;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .organ-count-badge {
+  flex: 0 0 auto;
   font-size: 12px;
   font-weight: 700;
   color: var(--accent-teal);
@@ -370,10 +377,10 @@ textarea {
 
 .organ-panel-body {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   gap: 10px;
   padding: 0 14px 14px;
-  animation: slideDown 200ms ease;
 }
 
 .organ-dropdown-trigger {
@@ -382,13 +389,13 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 36px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-medium);
-  background: var(--bg-primary);
-  color: var(--text-secondary);
-  padding: 0 10px;
-  font-size: 12px;
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  background: rgba(4, 10, 18, 0.86);
+  color: var(--text-primary);
+  padding: 0 12px;
+  font-size: 13px;
   font-weight: 700;
   transition: border-color var(--transition), color var(--transition), background var(--transition);
 }
@@ -400,29 +407,65 @@ textarea {
 
 .organ-dropdown-trigger.open {
   border-color: var(--border-accent-bright);
-  background: rgba(96, 165, 250, 0.08);
+  background: rgba(45, 212, 191, 0.08);
   color: var(--text-primary);
 }
 
 .organ-dropdown-trigger-left {
   display: inline-flex;
+  min-width: 0;
   align-items: center;
   gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .organ-dropdown-trigger small {
+  flex: 0 0 auto;
   color: var(--text-muted);
   font-size: 11px;
 }
 
 .organ-dropdown-content {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   gap: 10px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.02);
+  max-height: min(560px, 54vh);
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  border-radius: 8px;
+  background: rgba(5, 12, 21, 0.92);
   padding: 10px;
+  overflow: hidden;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.24);
+  animation: slideDown 180ms ease;
+}
+
+.organ-detected-note {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  border: 1px solid rgba(45, 212, 191, 0.16);
+  border-radius: 8px;
+  background: rgba(45, 212, 191, 0.06);
+  padding: 9px 10px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.organ-detected-note span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.organ-detected-note span:last-child {
+  color: var(--accent-teal);
+  white-space: nowrap;
 }
 
 @keyframes slideDown {
@@ -439,19 +482,23 @@ textarea {
 /* Quick action buttons */
 .organ-quick-actions {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
 }
 
 .organ-quick-actions button {
-  min-height: 32px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface);
+  min-width: 0;
+  min-height: 34px;
+  border-radius: 8px;
+  background: rgba(18, 29, 43, 0.9);
   color: var(--text-secondary);
   border: 1px solid var(--border-subtle);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 800;
   padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   transition: all var(--transition);
 }
 
@@ -471,9 +518,9 @@ textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-primary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(7, 14, 23, 0.96);
   padding: 0 10px;
   transition: border-color var(--transition);
   color: var(--text-muted);
@@ -484,8 +531,9 @@ textarea {
 }
 
 .organ-search-row input {
+  min-width: 0;
   width: 100%;
-  min-height: 34px;
+  min-height: 38px;
   border: 0;
   background: transparent;
   color: var(--text-primary);
@@ -515,9 +563,10 @@ textarea {
 /* Scrollable organ list */
 .organ-scroll-list {
   display: flex;
+  min-height: 160px;
   flex-direction: column;
-  gap: 6px;
-  max-height: 300px;
+  gap: 8px;
+  max-height: min(360px, 34vh);
   overflow-y: auto;
   padding-right: 4px;
   scrollbar-width: thin;
@@ -539,9 +588,10 @@ textarea {
 
 /* Group cards */
 .organ-group-card {
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.02);
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  border-radius: 8px;
+  background: rgba(13, 21, 32, 0.72);
   overflow: hidden;
   transition: border-color var(--transition);
 }
@@ -551,11 +601,12 @@ textarea {
 }
 
 .organ-group-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px 10px;
   cursor: pointer;
   user-select: none;
   transition: background var(--transition);
@@ -567,9 +618,9 @@ textarea {
 
 .organ-group-left {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 6px;
-  min-width: 0;
 }
 
 .organ-group-chevron {
@@ -579,14 +630,19 @@ textarea {
 }
 
 .organ-group-left strong {
+  min-width: 0;
+  overflow: hidden;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .organ-group-count {
+  flex: 0 0 auto;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 800;
   color: var(--text-muted);
   background: rgba(255, 255, 255, 0.05);
   padding: 2px 7px;
@@ -605,18 +661,24 @@ textarea {
 .organ-group-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
 .organ-group-actions button {
-  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 30px;
+  border-radius: 8px;
   border: 1px solid var(--border-subtle);
-  background: var(--bg-primary);
+  background: rgba(7, 14, 23, 0.88);
   color: var(--text-secondary);
   font-size: 11px;
-  font-weight: 600;
-  padding: 4px 8px;
+  font-weight: 800;
+  padding: 0 9px;
+  white-space: nowrap;
   transition: all var(--transition);
 }
 
@@ -626,9 +688,11 @@ textarea {
   color: var(--text-primary);
 }
 
-.organ-group-actions button.active {
+.organ-group-actions button.active,
+.organ-group-actions .organ-group-toggle.active {
   border-color: var(--accent-teal);
   color: var(--accent-teal);
+  background: rgba(45, 212, 191, 0.08);
 }
 
 /* Checklist inside each group */
@@ -636,16 +700,18 @@ textarea {
   display: flex;
   flex-direction: column;
   border-top: 1px solid var(--border-subtle);
-  padding: 6px 8px 8px;
+  padding: 6px;
   animation: slideDown 150ms ease;
 }
 
 .organ-check-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 6px;
-  border-radius: var(--radius-sm);
+  gap: 9px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 7px;
   cursor: pointer;
   transition: background var(--transition);
   user-select: none;
@@ -684,9 +750,14 @@ textarea {
 }
 
 .organ-check-text {
+  min-width: 0;
+  overflow: hidden;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 650;
   color: var(--text-secondary);
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   transition: color var(--transition);
 }
 
@@ -703,6 +774,245 @@ textarea {
   border-radius: var(--radius-md);
   color: var(--text-muted);
   font-size: 13px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BONE FINDINGS PANEL
+   ═══════════════════════════════════════════════════════════════════════ */
+.findings-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  border: 1px solid rgba(255, 120, 60, 0.26);
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(20, 12, 10, 0.98), rgba(18, 12, 14, 0.98));
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), var(--shadow-md);
+}
+
+.findings-panel-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  color: var(--text-primary);
+}
+
+.findings-panel-header-left {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.findings-panel-header-left h2 {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.findings-panel-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.findings-count-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ff7e54;
+  background: rgba(255, 126, 84, 0.12);
+  padding: 3px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.findings-run-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 120, 60, 0.36);
+  background: rgba(255, 100, 50, 0.12);
+  color: #ff9a6c;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 0 12px;
+  white-space: nowrap;
+  transition: all var(--transition);
+}
+
+.findings-run-btn:hover:not(:disabled) {
+  background: rgba(255, 100, 50, 0.22);
+  border-color: rgba(255, 120, 60, 0.55);
+  color: #ffb48c;
+}
+
+.findings-run-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.findings-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 14px 14px;
+  padding: 14px;
+  border: 1px dashed rgba(255, 178, 54, 0.2);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.findings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 14px 14px;
+}
+
+.findings-disclaimer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 178, 54, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 178, 54, 0.06);
+  color: var(--accent-amber);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.findings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: min(300px, 30vh);
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 120, 60, 0.15) transparent;
+}
+
+.findings-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.findings-list::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: rgba(255, 120, 60, 0.15);
+}
+
+.finding-card {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 50px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(13, 21, 32, 0.72);
+  cursor: pointer;
+  user-select: none;
+  transition: all var(--transition);
+}
+
+.finding-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 120, 60, 0.28);
+}
+
+.finding-card.high-conf {
+  border-left: 3px solid rgba(255, 82, 54, 0.6);
+}
+
+.finding-card.med-conf {
+  border-left: 3px solid rgba(255, 178, 54, 0.5);
+}
+
+.finding-card input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.finding-check-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-medium);
+  background: var(--bg-primary);
+  color: transparent;
+  flex-shrink: 0;
+  transition: all var(--transition);
+}
+
+.finding-card.active .finding-check-box {
+  border-color: #ff7e54;
+  background: #ff7e54;
+  color: var(--bg-primary);
+}
+
+.finding-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.finding-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finding-bone {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finding-confidence {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.3px;
+}
+
+.finding-confidence.high {
+  color: #ff5236;
+  background: rgba(255, 82, 54, 0.14);
+}
+
+.finding-confidence.med {
+  color: var(--accent-amber);
+  background: rgba(245, 158, 11, 0.12);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -959,10 +1269,17 @@ textarea {
     grid-template-columns: 1fr 1fr;
   }
 
+  .organ-detected-note {
+    grid-template-columns: 1fr;
+  }
+
+  .organ-detected-note span:first-child {
+    white-space: normal;
+  }
+
   .organ-group-head {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .organ-group-actions {

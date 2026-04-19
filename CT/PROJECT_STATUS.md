@@ -8,6 +8,7 @@ Build an end-to-end CT imaging application that:
 - Supports anatomy-aware segmentation and colored organ meshes.
 - Allows multimodal AI analysis from selected 2D slices plus user prompts.
 - Works in a spatial/web context (Three.js + WebXR support).
+- Works as a native visionOS app with RealityKit model loading and backend-powered AI/slice workflows.
 
 ## 2) Primary Goals
 - Read CT data from the CT dataset and produce 3D outputs.
@@ -36,6 +37,12 @@ Build an end-to-end CT imaging application that:
 - Volume selection, processing controls, and analysis controls.
 - WebXR AR/VR entry actions are present in the scene UI.
 
+### Native Vision Pro App (SwiftUI + RealityKit)
+- Located at `VisionProDemo/CTVisionDemo.xcodeproj`.
+- Downloads a backend-served USDZ model from `/api/visionos/assets`.
+- Supports native organ presets/toggles, rotate/scale interaction, selected-organ tapping, and an immersive space.
+- Displays CT slice thumbnails and sends selected slice IDs plus a typed prompt to `/api/analyze` with Gemini.
+
 ### AI Integration
 - Provider selectable in UI (Gemini or Groq).
 - Analysis endpoint accepts selected slice IDs + user prompt text.
@@ -46,6 +53,9 @@ Build an end-to-end CT imaging application that:
 - CT slice discovery and preview serving are working.
 - Batch HU render generation is working.
 - TotalSegmentator chest pipeline is working and exports anatomy-colored GLB meshes.
+- Vision Pro asset export is implemented and exports optimized USDZ/GLB assets under `generated/visionos`.
+- FastAPI now exposes `/api/visionos/assets` and `/api/visionos/export`.
+- Native visionOS project builds successfully for the Apple Vision Pro simulator.
 - Gemini analysis path is wired and validated through live backend execution.
 - Enter-to-submit in the analysis textarea is fixed.
 - Analysis panel layout no longer overlaps image tiles.
@@ -64,7 +74,8 @@ Build an end-to-end CT imaging application that:
 
 ## 6) Runtime Model Configuration
 - Current Groq model: meta-llama/llama-4-scout-17b-16e-instruct
-- Current Gemini model: gemini-3.1-flash-lite-preview
+- Current Gemini requested model: gemini-3.1-flash-lite-preview
+- Gemini fallback models: gemini-flash-lite-latest, gemini-2.5-flash-lite
 - Prompt templates and model IDs are in vlm_config.json.
 
 ## 7) Data/Output Locations
@@ -72,6 +83,7 @@ Build an end-to-end CT imaging application that:
 - Generated volumes/manifests: generated/volumes
 - Generated slice images: generated/slices
 - TotalSeg outputs: generated/totalseg
+- Vision Pro USDZ/GLB/manifest outputs: generated/visionos
 
 ## 8) Known Constraints
 - AI output is triage support, not diagnostic ground truth.
@@ -79,6 +91,6 @@ Build an end-to-end CT imaging application that:
 
 ## 9) Recommended Next Steps
 - Add user presets (for example: Bones only, Vessels only, Heart + Great Vessels, Lungs only).
-- Add export/import for organ visibility presets.
-- Sync README wording to match the current Gemini model id.
+- Add export/import for user-defined organ visibility presets.
 - Add basic automated frontend tests for organ visibility logic.
+- Add a signed device deployment profile when moving from simulator/local lab testing to physical Vision Pro installs.
